@@ -1664,6 +1664,11 @@ pub(super) fn execute_navigate_action_in_context(
             state.next_agent();
             leave_navigate_mode(state);
         }
+        NavigateAction::NextBlockedAgent => {
+            // Focusing the next blocked agent resolves agent panel entries, which
+            // only the App-level dispatch can reach; this path just exits the mode.
+            leave_navigate_mode(state);
+        }
         NavigateAction::NewTab => {
             if state.active.is_some() {
                 if state.prompt_new_tab_name {
