@@ -350,6 +350,12 @@
           "description": "Focus the next agent shown in the agent panel. Unset by default."
         },
         {
+          "key": "keys.next_blocked_agent",
+          "type": "keybinding",
+          "default": "\"\"",
+          "description": "Focus the next agent in a blocked state. Unset by default."
+        },
+        {
           "key": "keys.focus_agent",
           "type": "keybinding",
           "default": "unset",
