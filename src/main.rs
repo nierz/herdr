@@ -310,6 +310,10 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # New tabs can still be created with the configured keybinding.
 # hide_tab_bar_when_single_tab = false
 
+# Prefix each tab label with its 1-based switch index, e.g. "1:mytab".
+# Auto-named tabs already show the bare index and stay unchanged.
+# show_tab_numbers = false
+
 # Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
 # "workspaces" is accepted as an alias for "spaces".
 # agent_panel_sort = "spaces"
