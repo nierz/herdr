@@ -334,6 +334,26 @@ impl App {
                     leave_navigate_mode(&mut self.state);
                 }
             }
+            NavigateAction::MoveTabLeft => {
+                if let Some(ws_idx) = self.state.active {
+                    let ws = &self.state.workspaces[ws_idx];
+                    let src = ws.active_tab;
+                    if src > 0 {
+                        self.move_tab_via_api(ws_idx, src, src - 1);
+                        leave_navigate_mode(&mut self.state);
+                    }
+                }
+            }
+            NavigateAction::MoveTabRight => {
+                if let Some(ws_idx) = self.state.active {
+                    let ws = &self.state.workspaces[ws_idx];
+                    let src = ws.active_tab;
+                    if src + 1 < ws.tabs.len() {
+                        self.move_tab_via_api(ws_idx, src, src + 2);
+                        leave_navigate_mode(&mut self.state);
+                    }
+                }
+            }
             NavigateAction::CloseTab => {
                 if !self.close_active_tab_via_api_requires_confirmation() {
                     leave_navigate_mode(&mut self.state);
@@ -1352,6 +1372,8 @@ pub(crate) enum NavigateAction {
     RenameTab,
     PreviousTab,
     NextTab,
+    MoveTabLeft,
+    MoveTabRight,
     CloseTab,
     RenamePane,
     FocusPaneLeft,
@@ -1486,6 +1508,8 @@ fn non_indexed_action_for_key(
         (&kb.rename_tab, NavigateAction::RenameTab),
         (&kb.previous_tab, NavigateAction::PreviousTab),
         (&kb.next_tab, NavigateAction::NextTab),
+        (&kb.move_tab_left, NavigateAction::MoveTabLeft),
+        (&kb.move_tab_right, NavigateAction::MoveTabRight),
         (&kb.close_tab, NavigateAction::CloseTab),
         (&kb.rename_pane, NavigateAction::RenamePane),
         (&kb.edit_scrollback, NavigateAction::EditScrollback),
@@ -1681,6 +1705,30 @@ pub(super) fn execute_navigate_action_in_context(
         }
         NavigateAction::NextTab => {
             state.next_tab();
+            leave_navigate_mode(state);
+        }
+        NavigateAction::MoveTabLeft => {
+            if let Some(ws) = state
+                .active
+                .and_then(|i| state.workspaces.get_mut(i))
+            {
+                let src = ws.active_tab;
+                if src > 0 {
+                    ws.move_tab(src, src - 1);
+                }
+            }
+            leave_navigate_mode(state);
+        }
+        NavigateAction::MoveTabRight => {
+            if let Some(ws) = state
+                .active
+                .and_then(|i| state.workspaces.get_mut(i))
+            {
+                let src = ws.active_tab;
+                if src + 1 < ws.tabs.len() {
+                    ws.move_tab(src, src + 2);
+                }
+            }
             leave_navigate_mode(state);
         }
         NavigateAction::CloseTab => {
