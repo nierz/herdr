@@ -23,6 +23,46 @@ pub(crate) fn truncate_end(text: &str, max_width: usize) -> String {
     format!("{prefix}…")
 }
 
+/// Splits `text` into a head that fits within `max_width` display columns and
+/// the remaining tail, preferring a whitespace boundary and falling back to a
+/// hard split for a single unbroken word. The tail is empty when `text` fits.
+pub(crate) fn split_at_width(text: &str, max_width: usize) -> (&str, &str) {
+    if display_width(text) <= max_width {
+        return (text, "");
+    }
+    if max_width == 0 {
+        return ("", text);
+    }
+
+    let mut width = 0usize;
+    let mut hard_end = 0usize;
+    let mut break_at = None;
+    for (index, ch) in text.char_indices() {
+        let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if width + ch_width > max_width {
+            break;
+        }
+        if ch.is_whitespace() && index > 0 {
+            break_at = Some(index);
+        }
+        width += ch_width;
+        hard_end = index + ch.len_utf8();
+    }
+
+    if text[hard_end..].starts_with(char::is_whitespace) {
+        break_at = Some(hard_end);
+    }
+    if let Some(index) = break_at {
+        let head = text[..index].trim_end();
+        let tail = text[index..].trim_start();
+        if !head.is_empty() && !tail.is_empty() {
+            return (head, tail);
+        }
+    }
+
+    (&text[..hard_end], text[hard_end..].trim_start())
+}
+
 pub(crate) fn middle_elide(text: &str, max_width: usize) -> String {
     if display_width(text) <= max_width {
         return text.to_string();
@@ -77,6 +117,23 @@ mod tests {
 
         assert_eq!(text, "提交 herdr 的反…");
         assert!(display_width(&text) <= 16);
+    }
+
+    #[test]
+    fn split_at_width_prefers_whitespace_and_respects_display_width() {
+        assert_eq!(split_at_width("short title", 20), ("short title", ""));
+        assert_eq!(
+            split_at_width("Investigate internal activities", 23),
+            ("Investigate internal", "activities")
+        );
+        assert_eq!(
+            split_at_width("unbreakablewordthatkeepsgoing", 10),
+            ("unbreakabl", "ewordthatkeepsgoing")
+        );
+
+        let (head, tail) = split_at_width("修复标题很长的任务", 7);
+        assert!(display_width(head) <= 7);
+        assert_eq!(format!("{head}{tail}"), "修复标题很长的任务");
     }
 
     #[test]

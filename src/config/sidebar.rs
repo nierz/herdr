@@ -7,6 +7,7 @@ use crate::detect::Agent;
 const MAX_SIDEBAR_ROWS: usize = 16;
 const MAX_SIDEBAR_TOKENS_PER_ROW: usize = 16;
 const DEFAULT_SIDEBAR_ROW_GAP: u16 = 0;
+const DEFAULT_SIDEBAR_TOKEN_MAX_ROWS: u16 = 1;
 
 fn deserialize_sidebar_rows<'de, D, T>(deserializer: D) -> Result<Vec<Vec<T>>, D::Error>
 where
@@ -98,6 +99,19 @@ pub struct SidebarTokenStyle {
     pub fg: Option<SidebarTokenColor>,
     pub bold: Option<bool>,
     pub dim: Option<bool>,
+    /// Terminal rows this occurrence may wrap onto. Honored for agent rows only.
+    pub max_rows: Option<u16>,
+}
+
+impl SidebarTokenStyle {
+    /// Rows this occurrence may occupy, clamped to at least one.
+    pub(crate) fn wrap_rows(self) -> usize {
+        usize::from(
+            self.max_rows
+                .unwrap_or(DEFAULT_SIDEBAR_TOKEN_MAX_ROWS)
+                .max(1),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +173,8 @@ struct RawStyledSidebarToken {
     bold: Option<bool>,
     #[serde(default)]
     dim: Option<bool>,
+    #[serde(default)]
+    max_rows: Option<u16>,
 }
 
 #[derive(Deserialize)]
@@ -169,17 +185,28 @@ enum RawSidebarToken {
 }
 
 impl RawSidebarToken {
-    fn parts(self) -> (String, Option<SidebarTokenStyle>) {
+    fn parts(self) -> Result<(String, Option<SidebarTokenStyle>), String> {
         match self {
-            Self::Plain(token) => (token, None),
-            Self::Styled(token) => (
-                token.token,
-                Some(SidebarTokenStyle {
-                    fg: token.fg,
-                    bold: token.bold,
-                    dim: token.dim,
-                }),
-            ),
+            Self::Plain(token) => Ok((token, None)),
+            Self::Styled(token) => {
+                if let Some(max_rows) = token.max_rows {
+                    let limit = MAX_SIDEBAR_ROWS as u16;
+                    if !(1..=limit).contains(&max_rows) {
+                        return Err(format!(
+                            "sidebar token max_rows must be between 1 and {limit}"
+                        ));
+                    }
+                }
+                Ok((
+                    token.token,
+                    Some(SidebarTokenStyle {
+                        fg: token.fg,
+                        bold: token.bold,
+                        dim: token.dim,
+                        max_rows: token.max_rows,
+                    }),
+                ))
+            }
         }
     }
 }
@@ -226,6 +253,9 @@ where
     }
     if let Some(dim) = style.dim {
         map.serialize_entry("dim", &dim)?;
+    }
+    if let Some(max_rows) = style.max_rows {
+        map.serialize_entry("max_rows", &max_rows)?;
     }
     map.end()
 }
@@ -282,7 +312,9 @@ impl<'de> Deserialize<'de> for AgentSidebarToken {
     where
         D: serde::Deserializer<'de>,
     {
-        let (value, style) = RawSidebarToken::deserialize(deserializer)?.parts();
+        let (value, style) = RawSidebarToken::deserialize(deserializer)?
+            .parts()
+            .map_err(serde::de::Error::custom)?;
         let token = parse_sidebar_token(
             value,
             &[
@@ -329,7 +361,9 @@ impl<'de> Deserialize<'de> for SpaceSidebarToken {
     where
         D: serde::Deserializer<'de>,
     {
-        let (value, style) = RawSidebarToken::deserialize(deserializer)?.parts();
+        let (value, style) = RawSidebarToken::deserialize(deserializer)?
+            .parts()
+            .map_err(serde::de::Error::custom)?;
         let token = parse_sidebar_token(
             value,
             &[
@@ -558,11 +592,34 @@ rows = [[{ token = "git_status", fg = "#ff00aa" }], [{ token = "$jj", bold = tru
     }
 
     #[test]
+    fn parses_token_max_rows_and_defaults_to_a_single_row() {
+        let config: crate::config::Config = toml::from_str(
+            r##"
+[ui.sidebar.agents]
+rows = [[{ token = "terminal_title_stripped", bold = true, max_rows = 2 }, "workspace"]]
+"##,
+        )
+        .unwrap();
+
+        let (token, style) = config.ui.sidebar.agents.rows[0][0].parts();
+        assert_eq!(token, &AgentSidebarToken::TerminalTitleStripped);
+        assert_eq!(style.max_rows, Some(2));
+        assert_eq!(style.wrap_rows(), 2);
+
+        let (_, style) = config.ui.sidebar.agents.rows[0][1].parts();
+        assert_eq!(style.max_rows, None);
+        assert_eq!(style.wrap_rows(), 1);
+        assert_eq!(SidebarTokenStyle::default().wrap_rows(), 1);
+    }
+
+    #[test]
     fn rejects_invalid_occurrence_styles() {
         for entry in [
             r##"{ token = "workspace", fg = "red" }"##,
             r##"{ token = "workspace", fg = "#abcd" }"##,
             r##"{ token = "workspace", underline = true }"##,
+            r##"{ token = "workspace", max_rows = 0 }"##,
+            r##"{ token = "workspace", max_rows = 17 }"##,
         ] {
             let input = format!("[ui.sidebar.agents]\nrows = [[{entry}]]\n");
             assert!(

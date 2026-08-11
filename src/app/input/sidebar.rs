@@ -451,7 +451,12 @@ impl AppState {
         let body_bottom = body.y + body.height;
         let entries = crate::ui::agent_panel_entries(self);
         for (index, detail) in entries.iter().enumerate().skip(self.agent_panel_scroll) {
-            let height = crate::ui::agent_entry_height_in_body(self, detail, body.height);
+            let height = crate::ui::agent_entry_height_in_body(
+                self,
+                detail,
+                crate::ui::agent_panel_wrap_width(detail_area),
+                body.height,
+            );
             if row_y.saturating_add(height) > body_bottom {
                 break;
             }

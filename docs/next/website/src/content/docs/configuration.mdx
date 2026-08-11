@@ -311,6 +311,18 @@ rows = [
 
 `fg` accepts strict `#RGB` or `#RRGGBB`. `bold` and `dim` accept booleans. Omitted fields preserve the token's contextual style; explicit `false` removes that modifier. Styling applies to one occurrence, so the same token may look different in another row or agent override. A foreground override replaces all semantic foregrounds inside that occurrence: for example, styled `git_status` ahead and behind counts use one color instead of their default green and red. Token styles never change separators or row backgrounds.
 
+An Agent token occurrence may also set `max_rows` to wrap instead of truncating:
+
+```toml
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", { token = "terminal_title_stripped", max_rows = 2 }],
+  [{ token = "workspace", dim = true }, "tab"],
+]
+```
+
+`max_rows` defaults to `1`, which keeps the single truncated row. A higher value (at most 16) lets that token continue onto extra rows, breaking on whitespace and hard-splitting a single word that is longer than the panel. Continuation rows are indented under the wrapped token, and the final permitted row is still elided with `…` when text remains. Entries grow by exactly the rows they use, so scrolling and click targets follow. `max_rows` is honored for Agent rows only.
+
 `row_gap` controls the blank terminal rows between entries, independently for the Agent and Space panels. It defaults to `0`, which packs entries together; set it to `1` to restore the previous spacing. It does not add spacing between the content lines declared in `rows`. Consecutive indented worktree children remain packed as one Space group.
 
 Override the complete Agent layout for a known agent under `rows_by_agent`:

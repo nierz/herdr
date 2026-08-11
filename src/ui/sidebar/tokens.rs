@@ -24,6 +24,38 @@ pub(super) enum ResolvedTokenKind {
     Custom(String),
 }
 
+impl ResolvedTokenKind {
+    /// Text carried by the token, when it renders flexible-width text.
+    pub(super) fn text(&self) -> Option<&str> {
+        match self {
+            Self::StateText(text)
+            | Self::Workspace(text)
+            | Self::Tab(text)
+            | Self::Pane(text)
+            | Self::Agent(text)
+            | Self::TerminalTitle(text)
+            | Self::Branch(text)
+            | Self::Custom(text) => Some(text),
+            Self::StateIcon | Self::GitStatus { .. } => None,
+        }
+    }
+
+    /// The same token variant carrying replacement text.
+    pub(super) fn with_text(&self, text: String) -> Self {
+        match self {
+            Self::StateText(_) => Self::StateText(text),
+            Self::Workspace(_) => Self::Workspace(text),
+            Self::Tab(_) => Self::Tab(text),
+            Self::Pane(_) => Self::Pane(text),
+            Self::Agent(_) => Self::Agent(text),
+            Self::TerminalTitle(_) => Self::TerminalTitle(text),
+            Self::Branch(_) => Self::Branch(text),
+            Self::Custom(_) => Self::Custom(text),
+            other => other.clone(),
+        }
+    }
+}
+
 impl ResolvedToken {
     fn new(kind: ResolvedTokenKind, style: SidebarTokenStyle) -> Self {
         Self { kind, style }
